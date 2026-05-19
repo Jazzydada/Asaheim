@@ -276,7 +276,7 @@ export default function App() {
 
       <div style={{ textAlign: "center", marginBottom: 16 }}>
         <div style={{ color: gold, fontSize: 11, letterSpacing: "0.25em", textTransform: "uppercase", marginBottom: 4 }}>D&D 5e · Sværdkysten</div>
-        <h1 style={{ fontSize: 26, fontWeight: 700, color: parchment, letterSpacing: "0.05em", margin: 0, textShadow: `0 1px 8px ${gold}55` }}>Aaheim</h1>
+        <h1 style={{ fontSize: 26, fontWeight: 700, color: parchment, letterSpacing: "0.05em", margin: 0, textShadow: `0 1px 8px ${gold}55` }}>ASAHEIM</h1>
         <div style={{ color: parchment, fontSize: 13, letterSpacing: "0.15em", marginTop: 2, opacity: 0.75 }}>Adventures on the road</div>
         <div style={{ color: gold, fontSize: 18, marginTop: 2, opacity: 0.7 }}>✦ ✦ ✦</div>
       </div>
