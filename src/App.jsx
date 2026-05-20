@@ -1683,10 +1683,6 @@ ${card.effect}`;
           </div>
 
           <div style={{ padding: "18px 26px 22px", display: "grid", gap: 18, position: "relative" }}>
-            <Section label="Hændelse" sigil="❧" text={card.encounter} variant="main" />
-            <Ornament accent={`${accent}88`} />
-            <Section label="Drejning" sigil="◈" text={card.twist} variant="drejning" />
-
             <div
               style={{
                 background: "linear-gradient(180deg, #fff6d966, #d0a94f22)",
@@ -1730,6 +1726,10 @@ ${card.effect}`;
                 {card.weather.effect}
               </div>
             </div>
+
+            <Section label="Hændelse" sigil="❧" text={card.encounter} variant="main" />
+            <Ornament accent={`${accent}88`} />
+            <Section label="Drejning" sigil="◈" text={card.twist} variant="drejning" />
 
             <div
               style={{
