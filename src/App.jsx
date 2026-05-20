@@ -1292,6 +1292,7 @@ export default function App() {
   const [copied, setCopied] = useState(false);
   const [histOpen, setHistOpen] = useState(true);
   const [onlyPinned, setOnlyPinned] = useState(false);
+  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const accent = getSeasonAccent(activeSeason);
 
@@ -1359,20 +1360,29 @@ ${card.effect}`;
     [history, pinned]
   );
 
-  const activeSummary = [
-    activeSeason ? `${SEASON_ICONS[activeSeason]} ${activeSeason}` : "Alle årstider",
-    activeTypes.length ? `${activeTypes.length} typefilter` : "Alle typer",
-    activeTones.length ? `${activeTones.length} tonefilter` : "Alle toner",
-    weirdnessTarget < 35 ? "Jordnær" : weirdnessTarget > 65 ? "Mærkelig" : "Blandet",
-  ].join(" · ");
+  const weirdLabel =
+    weirdnessTarget < 20 ? "Ganske jordnær"
+    : weirdnessTarget < 40 ? "Lidt jordnær"
+    : weirdnessTarget < 62 ? "Blandet"
+    : weirdnessTarget < 80 ? "Ret sagnagtig"
+    : "Dybt sagnagtig";
+
+  // Kompakt statuslinje — kun vis aktive filtre
+  const activeChips = [
+    activeSeason ? `${SEASON_ICONS[activeSeason]} ${activeSeason}` : null,
+    ...activeTones.map(t => `${TONE_SIGILS[t]} ${t}`),
+    ...activeTypes.map(t => `${TYPE_SIGILS[t]} ${t}`),
+    weirdnessTarget !== 50 ? weirdLabel : null,
+  ].filter(Boolean);
+
+  const hasActiveFilters = activeChips.length > 0;
 
   return (
     <div
       style={{
-        background:
-          "radial-gradient(circle at top, #4a2b10 0, #211307 42%, #0e0905 100%)",
+        background: "radial-gradient(circle at top, #4a2b10 0, #211307 42%, #0e0905 100%)",
         minHeight: "100vh",
-        padding: "22px 16px 12px",
+        padding: "28px 16px 16px",
         fontFamily: "Georgia, 'Times New Roman', serif",
         color: ink,
       }}
@@ -1380,213 +1390,229 @@ ${card.effect}`;
       <style>{`
         *, *::before, *::after { box-sizing: border-box; }
         input[type="range"] { accent-color: ${accent}; }
+        input[type="range"] { height: 6px; }
         button:focus-visible, input:focus-visible { outline: 2px solid ${accent}; outline-offset: 2px; }
 
-        /* History card hover */
-        .hist-card {
-          transition: transform 0.13s ease, border-color 0.13s ease, box-shadow 0.13s ease;
-        }
+        .hist-card { transition: transform 0.13s ease, border-color 0.13s ease, box-shadow 0.13s ease; }
         .hist-card:hover {
           transform: translateY(-3px);
           border-color: ${accent}88 !important;
           box-shadow: 0 8px 22px #00000055, 0 0 14px ${accent}22 !important;
         }
 
-        /* Filter button transitions */
-        .fbtn-filter {
-          transition: background 0.12s, border-color 0.12s, box-shadow 0.12s, color 0.12s;
-        }
+        .fbtn-filter { transition: background 0.12s, border-color 0.12s, box-shadow 0.12s, color 0.12s; }
         .fbtn-filter:hover { filter: brightness(1.18); }
 
-        /* Primary button */
-        .fbtn-primary {
-          transition: box-shadow 0.12s, filter 0.12s;
-        }
+        .fbtn-primary { transition: box-shadow 0.12s, filter 0.12s; }
         .fbtn-primary:hover:not(:disabled) {
           filter: brightness(1.12);
           box-shadow: 0 6px 18px #00000044, inset 0 1px 0 #fff3b088 !important;
         }
 
-        /* Corner ornaments on card */
         .card-corner {
-          position: absolute;
-          width: 36px;
-          height: 36px;
-          pointer-events: none;
-          opacity: 0.45;
-          color: ${accent};
-          font-size: 22px;
-          line-height: 1;
+          position: absolute; width: 36px; height: 36px;
+          pointer-events: none; opacity: 0.4; color: ${accent}; font-size: 20px; line-height: 1;
         }
         .card-corner-tl { top: 14px; left: 14px; }
         .card-corner-tr { top: 14px; right: 14px; text-align: right; }
         .card-corner-bl { bottom: 14px; left: 14px; }
         .card-corner-br { bottom: 14px; right: 14px; text-align: right; }
 
-        /* Pinned bookmark ribbon */
         .pin-ribbon {
-          position: absolute;
-          top: 0; right: 18px;
-          width: 14px;
+          position: absolute; top: 0; right: 18px; width: 14px;
           background: linear-gradient(180deg, #b8962e, #7a4a0a);
           border-radius: 0 0 5px 5px;
-          transition: height 0.12s;
         }
 
-        /* Wax seal pulse-off (no animation, just static depth) */
-        .wax-seal {
-          transition: box-shadow 0.15s, transform 0.12s;
-        }
+        .wax-seal { transition: box-shadow 0.15s, transform 0.12s; }
         .wax-seal:hover { transform: scale(1.07); }
 
-        /* History show-only-pinned toggle */
         .hist-toggle {
-          font-size: 11px;
-          background: none;
-          border: 1px solid #ffffff22;
-          border-radius: 999px;
-          padding: 3px 11px;
-          color: #ffffff66;
-          cursor: pointer;
-          font-family: Georgia, serif;
-          letter-spacing: 0.06em;
+          font-size: 11px; background: none; border: 1px solid #ffffff22;
+          border-radius: 999px; padding: 3px 11px; color: #ffffff66;
+          cursor: pointer; font-family: Georgia, serif; letter-spacing: 0.06em;
           transition: border-color 0.12s, color 0.12s;
         }
         .hist-toggle:hover { border-color: ${accent}88; color: ${accent}; }
         .hist-toggle.active { border-color: ${accent}; color: ${accent}; background: ${accent}18; }
 
-        /* Slider track label */
-        .weird-label {
-          transition: color 0.2s;
+        .filter-panel {
+          overflow: hidden;
+          transition: max-height 0.22s ease, opacity 0.18s ease;
         }
+        .filter-panel.open { max-height: 600px; opacity: 1; }
+        .filter-panel.closed { max-height: 0; opacity: 0; pointer-events: none; }
+
+        .active-chip {
+          display: inline-flex; align-items: center;
+          font-size: 11px; padding: 3px 10px;
+          border-radius: 999px; border: 1px solid ${accent}55;
+          background: ${accent}14; color: ${accent};
+          font-family: Georgia, serif; letter-spacing: 0.05em;
+          cursor: pointer; transition: background 0.1s;
+        }
+        .active-chip:hover { background: ${accent}28; }
+
+        .draw-btn-wrap { display: flex; justify-content: center; margin: 20px 0 6px; }
       `}</style>
 
-      <div style={{ maxWidth: 920, margin: "0 auto" }}>
-        <header style={{ textAlign: "center", marginBottom: 18 }}>
-          <div style={{ color: accent, fontSize: 11, letterSpacing: "0.28em", textTransform: "uppercase", marginBottom: 5 }}>
+      <div style={{ maxWidth: 760, margin: "0 auto" }}>
+
+        {/* ── HEADER ─────────────────────────────────────────── */}
+        <header style={{ textAlign: "center", marginBottom: 26 }}>
+          <div style={{ color: accent, fontSize: 10, letterSpacing: "0.32em", textTransform: "uppercase", marginBottom: 7, opacity: 0.85 }}>
             D&D 5e · Sværdkysten
           </div>
-          <h1
-            style={{
-              fontSize: 34,
-              fontWeight: 800,
-              color: parchmentLight,
-              letterSpacing: "0.08em",
-              margin: 0,
-              textShadow: `0 2px 18px ${accent}66`,
-            }}
-          >
+          <h1 style={{
+            fontSize: 38,
+            fontWeight: 800,
+            color: parchmentLight,
+            letterSpacing: "0.1em",
+            margin: 0,
+            textShadow: `0 2px 22px ${accent}55`,
+          }}>
             Asaheim
           </h1>
-          <div style={{ color: parchment, fontSize: 13, letterSpacing: "0.16em", marginTop: 3, opacity: 0.78 }}>
+          <div style={{ color: parchment, fontSize: 12, letterSpacing: "0.2em", marginTop: 5, opacity: 0.65 }}>
             Adventures on the road
           </div>
-          <div style={{ maxWidth: 520, margin: "10px auto 0" }}>
+          <div style={{ maxWidth: 440, margin: "14px auto 0" }}>
             <Ornament accent={accent} />
           </div>
         </header>
 
-        <section
-          style={{
-            maxWidth: 900,
-            margin: "0 auto 16px",
-            padding: 14,
-            borderRadius: 18,
-            border: "1px solid #ffffff1f",
-            background: "linear-gradient(180deg, #2c1b0ddd, #160d06dd)",
-            boxShadow: "0 10px 30px #00000066, inset 0 1px 0 #ffffff12",
-          }}
-        >
-          <div style={{ display: "grid", gap: 12 }}>
-            <div>
-              <div style={{ color: "#ffffff66", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 7 }}>
-                Årstid
-              </div>
-              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                {ALL_SEASONS.map(s => {
-                  const active = activeSeason === s;
-                  const c = SEASON_COLORS[s];
-                  return (
-                    <FilterButton key={s} active={active} color={c} onClick={() => toggleSeason(s)}>
+        {/* ── WEIRDNESS — primær kontrol ───────────────────── */}
+        <div style={{
+          maxWidth: 520,
+          margin: "0 auto 4px",
+          padding: "18px 22px 14px",
+        }}>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 12 }}>
+            <span style={{ color: "#ffffff55", fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase" }}>
+              Jordnær
+            </span>
+            <span style={{
+              color: weirdnessTarget > 62 ? "#c9a0d0" : weirdnessTarget < 38 ? "#a0c4a8" : parchment,
+              fontSize: 13,
+              fontStyle: "italic",
+              transition: "color 0.2s",
+              letterSpacing: "0.04em",
+            }}>
+              {weirdLabel}
+            </span>
+            <span style={{ color: "#ffffff55", fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase" }}>
+              Sagnagtig
+            </span>
+          </div>
+          <input
+            type="range"
+            min="0"
+            max="100"
+            value={weirdnessTarget}
+            onChange={e => setWeirdnessTarget(Number(e.target.value))}
+            style={{ width: "100%", display: "block" }}
+          />
+        </div>
+
+        {/* ── AKTIVE FILTRE — status chips ────────────────── */}
+        {hasActiveFilters && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", justifyContent: "center", marginBottom: 14 }}>
+            {activeChips.map((chip, i) => (
+              <span key={i} className="active-chip">{chip}</span>
+            ))}
+            <span
+              className="active-chip"
+              onClick={clearFilters}
+              style={{ borderColor: "#ffffff33", background: "#ffffff0a", color: "#ffffff66" }}
+            >
+              × nulstil
+            </span>
+          </div>
+        )}
+
+        {/* ── TRÆK KORT — stor primær knap ────────────────── */}
+        <div className="draw-btn-wrap">
+          <FBtn primary onClick={draw}>⚄ Træk nyt kort</FBtn>
+        </div>
+
+        {/* ── AVANCEREDE FILTRE — collapsible ─────────────── */}
+        <div style={{ maxWidth: 680, margin: "14px auto 20px", textAlign: "center" }}>
+          <button
+            onClick={() => setFiltersOpen(v => !v)}
+            style={{
+              background: "none",
+              border: "none",
+              color: filtersOpen ? accent : "#ffffff44",
+              cursor: "pointer",
+              fontFamily: "Georgia, serif",
+              fontSize: 11,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              padding: "4px 12px",
+              transition: "color 0.15s",
+            }}
+          >
+            {filtersOpen ? "▾" : "▸"} Avancerede filtre
+            {hasActiveFilters && !filtersOpen && (
+              <span style={{ marginLeft: 7, color: accent, fontSize: 10 }}>●</span>
+            )}
+          </button>
+
+          <div className={`filter-panel${filtersOpen ? " open" : " closed"}`}>
+            <div style={{
+              marginTop: 12,
+              padding: "16px 18px",
+              borderRadius: 16,
+              border: "1px solid #ffffff1a",
+              background: "linear-gradient(180deg, #2c1b0dee, #160d06ee)",
+              boxShadow: "0 10px 30px #00000055, inset 0 1px 0 #ffffff10",
+              display: "grid",
+              gap: 14,
+            }}>
+              {/* Årstid */}
+              <div>
+                <div style={{ color: "#ffffff44", fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>Årstid</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {ALL_SEASONS.map(s => (
+                    <FilterButton key={s} active={activeSeason === s} color={SEASON_COLORS[s]} onClick={() => toggleSeason(s)}>
                       {SEASON_ICONS[s]} {s}
                     </FilterButton>
-                  );
-                })}
-              </div>
-            </div>
-
-            <div>
-              <div style={{ color: "#ffffff66", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 7 }}>
-                Type
-              </div>
-              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                {ALL_TYPES.map(t => (
-                  <FilterButton key={t} active={activeTypes.includes(t)} color={typeColor[t]} onClick={() => toggleType(t)}>
-                    {TYPE_SIGILS[t]} {t}
-                  </FilterButton>
-                ))}
-              </div>
-            </div>
-
-            <div>
-              <div style={{ color: "#ffffff66", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase", marginBottom: 7 }}>
-                Tone
-              </div>
-              <div style={{ display: "flex", gap: 7, flexWrap: "wrap" }}>
-                {ALL_TONES.map(t => (
-                  <FilterButton key={t} active={activeTones.includes(t)} color={toneColor[t]} onClick={() => toggleTone(t)}>
-                    {TONE_SIGILS[t]} {t}
-                  </FilterButton>
-                ))}
-              </div>
-            </div>
-
-            <div
-              style={{
-                display: "grid",
-                gap: 7,
-                background: "#00000022",
-                border: "1px solid #ffffff14",
-                borderRadius: 14,
-                padding: "10px 12px",
-              }}
-            >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 10, alignItems: "center" }}>
-                <div style={{ color: "#ffffff66", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase" }}>
-                  Mærkelighed
-                </div>
-                <div className="weird-label" style={{
-                  color: weirdnessTarget > 65 ? "#c9a0d0" : weirdnessTarget < 35 ? "#a0c4a8" : parchment,
-                  fontSize: 12,
-                  fontStyle: "italic",
-                }}>
-                  {weirdnessTarget < 20 ? "Ganske jordnær"
-                    : weirdnessTarget < 40 ? "Lidt jordnær"
-                    : weirdnessTarget < 62 ? "Blandet"
-                    : weirdnessTarget < 80 ? "Ret mærkelig"
-                    : "Dybt mærkelig"}
+                  ))}
                 </div>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="100"
-                value={weirdnessTarget}
-                onChange={e => setWeirdnessTarget(Number(e.target.value))}
-                style={{ width: "100%" }}
-              />
-              <div style={{ display: "flex", justifyContent: "space-between", color: "#ffffff55", fontSize: 11 }}>
-                <span>Jordnær</span>
-                <span>Mærkelig</span>
-              </div>
-            </div>
 
-            <div style={{ display: "flex", justifyContent: "space-between", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-              <div style={{ color: "#ffffff66", fontSize: 12 }}>{activeSummary}</div>
-              <FBtn onClick={clearFilters}>Nulstil filtre</FBtn>
+              {/* Type */}
+              <div>
+                <div style={{ color: "#ffffff44", fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>Type</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {ALL_TYPES.map(t => (
+                    <FilterButton key={t} active={activeTypes.includes(t)} color={typeColor[t]} onClick={() => toggleType(t)}>
+                      {TYPE_SIGILS[t]} {t}
+                    </FilterButton>
+                  ))}
+                </div>
+              </div>
+
+              {/* Tone */}
+              <div>
+                <div style={{ color: "#ffffff44", fontSize: 9, letterSpacing: "0.2em", textTransform: "uppercase", marginBottom: 8 }}>Tone</div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {ALL_TONES.map(t => (
+                    <FilterButton key={t} active={activeTones.includes(t)} color={toneColor[t]} onClick={() => toggleTone(t)}>
+                      {TONE_SIGILS[t]} {t}
+                    </FilterButton>
+                  ))}
+                </div>
+              </div>
+
+              {hasActiveFilters && (
+                <div style={{ textAlign: "right" }}>
+                  <FBtn onClick={clearFilters}>× Nulstil filtre</FBtn>
+                </div>
+              )}
             </div>
           </div>
-        </section>
+        </div>
 
         <main
           style={{
@@ -1599,8 +1625,8 @@ ${card.effect}`;
             borderRadius: 22,
             border: `2px solid ${accent}99`,
             boxShadow: `0 0 0 5px #00000022, 0 20px 55px #000000aa, inset 0 1px 0 #ffffffbb`,
-            maxWidth: 760,
-            margin: "0 auto 18px",
+            maxWidth: "100%",
+            margin: "0 auto 22px",
             overflow: "hidden",
             position: "relative",
           }}
@@ -1834,22 +1860,18 @@ ${card.effect}`;
 
           <div
             style={{
-              background: "linear-gradient(180deg, #d9be7a66, #7b4b1533)",
+              background: "linear-gradient(180deg, #d9be7a44, #7b4b1522)",
               borderTop: `1px solid ${dividerColor}`,
-              padding: "13px 22px",
+              padding: "12px 22px",
               display: "flex",
               gap: 9,
-              flexWrap: "wrap",
               justifyContent: "space-between",
               alignItems: "center",
             }}
           >
-            <div style={{ display: "flex", gap: 9, flexWrap: "wrap" }}>
-              <FBtn primary onClick={draw}>⚄ Træk nyt kort</FBtn>
-              <FBtn onClick={copy}>{copied ? "✓ Kopieret" : "⎘ Kopiér"}</FBtn>
-            </div>
-            <div style={{ fontSize: 11, color: inkFaded }}>
-              Weirdness {card.weirdness} · {card.weather.tags?.join(", ")}
+            <FBtn onClick={copy}>{copied ? "✓ Kopieret" : "⎘ Kopiér til bordet"}</FBtn>
+            <div style={{ fontSize: 11, color: inkFaded, fontStyle: "italic" }}>
+              {card.tone} · {weirdLabel.toLowerCase()}
             </div>
           </div>
 
@@ -1862,7 +1884,7 @@ ${card.effect}`;
         </main>
 
         {sortedHistory.length > 0 && (
-          <section style={{ maxWidth: 900, margin: "0 auto" }}>
+          <section style={{ margin: "0 auto" }}>
             {/* Historik header med collapsible + kun-pinned toggle */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: histOpen ? 11 : 6 }}>
               <button
