@@ -1054,9 +1054,25 @@ function weatherMatchesEncounter(weather, encounter) {
   return weather.tags?.some(t => eTags.includes(t));
 }
 
+// Type-bonus ved høj/lav weirdness – multipliceres med sliderens retning
+const WEIRD_TYPE_UP   = { Wonder: 28, Mystery: 16, Fey: 10, Exploration: 6 };
+const GROUND_TYPE_UP  = { Social: 22, Combat: 14, Hverdagsmagisk: 10 };
+const WEIRD_TONE_UP   = { Fey: 24, Uhyggelig: 20, Mørk: 10 };
+const GROUND_TONE_UP  = { Komisk: 14, Hverdagsmagisk: 20, Eventyragtig: 8, "Kæmpe-tema": 6 };
+
 function weirdnessWeight(encounter, weirdnessTarget) {
-  const diff = Math.abs((encounter.weirdness ?? 50) - weirdnessTarget);
-  return Math.max(1, 101 - diff);
+  const base = Math.max(1, 101 - Math.abs((encounter.weirdness ?? 50) - weirdnessTarget));
+  const wf = weirdnessTarget / 100;   // 0 = jordnær, 1 = mærkelig
+  const gf = 1 - wf;
+
+  const typeBonus =
+    (WEIRD_TYPE_UP[encounter.type]  || WEIRD_TYPE_UP[encounter.subtype]  || 0) * wf * 1.6 +
+    (GROUND_TYPE_UP[encounter.type] || GROUND_TYPE_UP[encounter.subtype] || 0) * gf * 1.6;
+  const toneBonus =
+    (WEIRD_TONE_UP[encounter.tone]  || 0) * wf * 1.6 +
+    (GROUND_TONE_UP[encounter.tone] || 0) * gf * 1.6;
+
+  return Math.max(1, base + typeBonus + toneBonus);
 }
 
 function filterEncounters({ activeTypes, activeTones, weirdnessTarget }) {
@@ -1078,13 +1094,15 @@ function chooseWeatherForEncounter(encounter, activeSeason) {
   const seasons = activeSeason ? [activeSeason] : ALL_SEASONS;
   const allWeather = seasons.flatMap(s => weatherBySeason[s].map(w => ({ ...w, season: s })));
 
-  const matching = allWeather.filter(w => weatherMatchesEncounter(w, encounter));
-  if (matching.length > 0) return randomItem(matching);
+  const eTags = normalizeTags(encounter.weatherTags);
+  if (eTags.includes("any")) return randomItem(allWeather);
 
-  // Fallback: hvis encounter er meget specifikt, men sæsonen ikke har match,
-  // vælg en "clear/any"-agtig vejrpost i den valgte sæson.
-  const fallback = allWeather.filter(w => w.tags?.includes("clear")) || allWeather;
-  return randomItem(fallback.length ? fallback : allWeather);
+  // Blød matching: match-vejr får 6× vægt, resten 1× — ingen hård låsning
+  const weighted = allWeather.map(w => ({
+    ...w,
+    _w: w.tags?.some(t => eTags.includes(t)) ? 6 : 1,
+  }));
+  return weightedRandom(weighted, "_w");
 }
 
 function generateCard(activeTypes, activeSeason, activeTones, weirdnessTarget) {
@@ -1165,22 +1183,36 @@ function ToneBadge({ tone }) {
   );
 }
 
-function Section({ label, text, sigil = "✦" }) {
+function Section({ label, text, sigil = "✦", variant = "normal" }) {
+  const isMain = variant === "main";
+  const isDrejning = variant === "drejning";
   return (
-    <div>
+    <div style={{ padding: isMain ? "2px 0 4px" : undefined }}>
       <div
         style={{
           fontSize: 10,
           fontWeight: 800,
-          letterSpacing: "0.16em",
+          letterSpacing: "0.18em",
           textTransform: "uppercase",
-          color: inkFaded,
-          marginBottom: 5,
+          color: isDrejning ? "#8a6820bb" : inkFaded,
+          marginBottom: isMain ? 9 : 5,
         }}
       >
         {sigil} {label}
       </div>
-      <p style={{ margin: 0, fontSize: 15, color: ink, lineHeight: 1.65 }}>{text}</p>
+      <p
+        style={{
+          margin: 0,
+          fontSize: isMain ? 17 : 15,
+          color: isDrejning ? "#4a3010" : ink,
+          lineHeight: isMain ? 1.75 : 1.65,
+          fontStyle: isDrejning ? "italic" : "normal",
+          fontWeight: isMain ? 400 : 400,
+          letterSpacing: isMain ? "0.01em" : undefined,
+        }}
+      >
+        {text}
+      </p>
     </div>
   );
 }
@@ -1188,22 +1220,25 @@ function Section({ label, text, sigil = "✦" }) {
 function FBtn({ children, onClick, primary = false, disabled = false }) {
   return (
     <button
+      className={primary ? "fbtn-primary" : undefined}
       onClick={onClick}
       disabled={disabled}
       style={{
         fontSize: 12,
-        padding: "8px 15px",
+        padding: "8px 18px",
         borderRadius: 999,
         border: primary ? `1px solid #f4d77a` : `1px solid #7a624566`,
         background: primary
-          ? `linear-gradient(180deg, #c19435, #7b4912)`
+          ? `linear-gradient(175deg, #c89a38, #7b4912 90%)`
           : "linear-gradient(180deg, #fff3d0aa, #d5b97866)",
         color: primary ? "#fff7df" : "#5a3d1c",
         cursor: disabled ? "default" : "pointer",
         opacity: disabled ? 0.6 : 1,
         fontFamily: "Georgia, serif",
-        letterSpacing: "0.06em",
-        boxShadow: primary ? "0 4px 10px #00000033, inset 0 1px 0 #fff3b066" : "inset 0 1px 0 #ffffff88",
+        letterSpacing: "0.07em",
+        boxShadow: primary
+          ? "0 4px 12px #00000044, inset 0 1px 0 #fff3b077"
+          : "inset 0 1px 0 #ffffff88",
       }}
     >
       {children}
@@ -1213,10 +1248,10 @@ function FBtn({ children, onClick, primary = false, disabled = false }) {
 
 function Ornament({ accent }) {
   return (
-    <div style={{ display: "flex", alignItems: "center", gap: 10, color: accent, opacity: 0.8 }}>
-      <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, transparent, ${accent})` }} />
-      <div style={{ fontSize: 16 }}>✦ ❧ ✦</div>
-      <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, ${accent}, transparent)` }} />
+    <div style={{ display: "flex", alignItems: "center", gap: 12, color: accent, opacity: 0.7, margin: "2px 0" }}>
+      <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, transparent, ${accent}88)` }} />
+      <div style={{ fontSize: 14, letterSpacing: "0.35em", opacity: 0.9 }}>✦ ❧ ✦</div>
+      <div style={{ height: 1, flex: 1, background: `linear-gradient(90deg, ${accent}88, transparent)` }} />
     </div>
   );
 }
@@ -1224,18 +1259,21 @@ function Ornament({ accent }) {
 function FilterButton({ active, color, onClick, children }) {
   return (
     <button
+      className="fbtn-filter"
       onClick={onClick}
       style={{
         fontSize: 11,
-        padding: "6px 11px",
+        padding: "6px 12px",
         borderRadius: 999,
         border: `1px solid ${active ? color : "#ffffff26"}`,
         background: active ? `${color}2a` : "#ffffff0a",
-        color: active ? "#fff0b9" : "#ffffff99",
+        color: active ? "#fff0b9" : "#ffffff88",
         cursor: "pointer",
         letterSpacing: "0.07em",
         fontFamily: "Georgia, serif",
-        boxShadow: active ? `0 0 16px ${color}33, inset 0 1px 0 #ffffff22` : "inset 0 1px 0 #ffffff12",
+        boxShadow: active
+          ? `0 0 18px ${color}44, 0 0 6px ${color}22, inset 0 1px 0 #ffffff22`
+          : "inset 0 1px 0 #ffffff12",
       }}
     >
       {children}
@@ -1252,6 +1290,8 @@ export default function App() {
   const [history, setHistory] = useState([]);
   const [pinned, setPinned] = useState(new Set());
   const [copied, setCopied] = useState(false);
+  const [histOpen, setHistOpen] = useState(true);
+  const [onlyPinned, setOnlyPinned] = useState(false);
 
   const accent = getSeasonAccent(activeSeason);
 
@@ -1338,12 +1378,86 @@ ${card.effect}`;
       }}
     >
       <style>{`
-        input[type="range"] {
-          accent-color: ${accent};
+        *, *::before, *::after { box-sizing: border-box; }
+        input[type="range"] { accent-color: ${accent}; }
+        button:focus-visible, input:focus-visible { outline: 2px solid ${accent}; outline-offset: 2px; }
+
+        /* History card hover */
+        .hist-card {
+          transition: transform 0.13s ease, border-color 0.13s ease, box-shadow 0.13s ease;
         }
-        button:focus-visible, input:focus-visible {
-          outline: 2px solid ${accent};
-          outline-offset: 2px;
+        .hist-card:hover {
+          transform: translateY(-3px);
+          border-color: ${accent}88 !important;
+          box-shadow: 0 8px 22px #00000055, 0 0 14px ${accent}22 !important;
+        }
+
+        /* Filter button transitions */
+        .fbtn-filter {
+          transition: background 0.12s, border-color 0.12s, box-shadow 0.12s, color 0.12s;
+        }
+        .fbtn-filter:hover { filter: brightness(1.18); }
+
+        /* Primary button */
+        .fbtn-primary {
+          transition: box-shadow 0.12s, filter 0.12s;
+        }
+        .fbtn-primary:hover:not(:disabled) {
+          filter: brightness(1.12);
+          box-shadow: 0 6px 18px #00000044, inset 0 1px 0 #fff3b088 !important;
+        }
+
+        /* Corner ornaments on card */
+        .card-corner {
+          position: absolute;
+          width: 36px;
+          height: 36px;
+          pointer-events: none;
+          opacity: 0.45;
+          color: ${accent};
+          font-size: 22px;
+          line-height: 1;
+        }
+        .card-corner-tl { top: 14px; left: 14px; }
+        .card-corner-tr { top: 14px; right: 14px; text-align: right; }
+        .card-corner-bl { bottom: 14px; left: 14px; }
+        .card-corner-br { bottom: 14px; right: 14px; text-align: right; }
+
+        /* Pinned bookmark ribbon */
+        .pin-ribbon {
+          position: absolute;
+          top: 0; right: 18px;
+          width: 14px;
+          background: linear-gradient(180deg, #b8962e, #7a4a0a);
+          border-radius: 0 0 5px 5px;
+          transition: height 0.12s;
+        }
+
+        /* Wax seal pulse-off (no animation, just static depth) */
+        .wax-seal {
+          transition: box-shadow 0.15s, transform 0.12s;
+        }
+        .wax-seal:hover { transform: scale(1.07); }
+
+        /* History show-only-pinned toggle */
+        .hist-toggle {
+          font-size: 11px;
+          background: none;
+          border: 1px solid #ffffff22;
+          border-radius: 999px;
+          padding: 3px 11px;
+          color: #ffffff66;
+          cursor: pointer;
+          font-family: Georgia, serif;
+          letter-spacing: 0.06em;
+          transition: border-color 0.12s, color 0.12s;
+        }
+        .hist-toggle:hover { border-color: ${accent}88; color: ${accent}; }
+        .hist-toggle.active { border-color: ${accent}; color: ${accent}; background: ${accent}18; }
+
+        /* Slider track label */
+        .weird-label {
+          transition: color 0.2s;
         }
       `}</style>
 
@@ -1441,8 +1555,16 @@ ${card.effect}`;
                 <div style={{ color: "#ffffff66", fontSize: 10, letterSpacing: "0.18em", textTransform: "uppercase" }}>
                   Mærkelighed
                 </div>
-                <div style={{ color: parchment, fontSize: 12 }}>
-                  {weirdnessTarget < 35 ? "Mere jordnær" : weirdnessTarget > 65 ? "Mere mærkelig" : "Blandet"}
+                <div className="weird-label" style={{
+                  color: weirdnessTarget > 65 ? "#c9a0d0" : weirdnessTarget < 35 ? "#a0c4a8" : parchment,
+                  fontSize: 12,
+                  fontStyle: "italic",
+                }}>
+                  {weirdnessTarget < 20 ? "Ganske jordnær"
+                    : weirdnessTarget < 40 ? "Lidt jordnær"
+                    : weirdnessTarget < 62 ? "Blandet"
+                    : weirdnessTarget < 80 ? "Ret mærkelig"
+                    : "Dybt mærkelig"}
                 </div>
               </div>
               <input
@@ -1468,26 +1590,28 @@ ${card.effect}`;
 
         <main
           style={{
-            background:
+            background: [
               `linear-gradient(180deg, ${parchmentLight}, ${parchment} 42%, ${parchmentDark})`,
+              // Subtil tone-toning — svag farvevariation pr. tone
+              `radial-gradient(ellipse at 80% 0%, ${toneColor[card.tone] || gold}09 0%, transparent 60%)`,
+              `radial-gradient(ellipse at 20% 100%, ${accent}07 0%, transparent 55%)`,
+            ].join(", "),
             borderRadius: 22,
-            border: `2px solid ${accent}aa`,
-            boxShadow: `0 0 0 5px #00000022, 0 18px 50px #00000099, inset 0 1px 0 #ffffffaa`,
+            border: `2px solid ${accent}99`,
+            boxShadow: `0 0 0 5px #00000022, 0 20px 55px #000000aa, inset 0 1px 0 #ffffffbb`,
             maxWidth: 760,
             margin: "0 auto 18px",
             overflow: "hidden",
             position: "relative",
           }}
         >
-          <div
-            style={{
-              position: "absolute",
-              inset: 10,
-              border: `1px solid ${accent}55`,
-              borderRadius: 16,
-              pointerEvents: "none",
-            }}
-          />
+          {/* Indre rammelinje */}
+          <div style={{ position: "absolute", inset: 10, border: `1px solid ${accent}44`, borderRadius: 16, pointerEvents: "none" }} />
+          {/* Hjørneornamenter */}
+          <div className="card-corner card-corner-tl">❧</div>
+          <div className="card-corner card-corner-tr">❧</div>
+          <div className="card-corner card-corner-bl">❧</div>
+          <div className="card-corner card-corner-br">❧</div>
           <div
             style={{
               background: `linear-gradient(90deg, #6c3e12, ${accent}, #6c3e12)`,
@@ -1531,28 +1655,37 @@ ${card.effect}`;
             </div>
 
             <div
-              title="Vokssegl"
+              className="wax-seal"
+              title={`${card.type} — Vokssegl`}
               style={{
-                width: 56,
-                height: 56,
+                width: 62,
+                height: 62,
                 borderRadius: "50%",
-                background: `radial-gradient(circle at 35% 30%, #d85a4a, ${wax} 58%, #5d140f)`,
-                color: "#ffd9b0",
+                background: `radial-gradient(circle at 32% 28%, #e06050, ${wax} 54%, #4a0f0a)`,
+                color: "#ffe8c8",
                 display: "grid",
                 placeItems: "center",
                 fontSize: 28,
-                boxShadow: "0 4px 14px #00000055, inset 0 2px 2px #ffffff44, inset 0 -3px 6px #00000055",
+                boxShadow: [
+                  "0 6px 20px #00000066",
+                  "0 2px 4px #00000044",
+                  "inset 0 2px 3px #ffffff55",
+                  "inset 0 -4px 8px #00000066",
+                  `0 0 0 2px ${wax}88`,
+                ].join(", "),
                 flex: "0 0 auto",
+                cursor: "default",
+                userSelect: "none",
               }}
             >
               {TYPE_SIGILS[card.type]}
             </div>
           </div>
 
-          <div style={{ padding: "18px 26px 22px", display: "grid", gap: 16, position: "relative" }}>
-            <Section label="Hændelse" sigil="❧" text={card.encounter} />
-            <Ornament accent={`${accent}99`} />
-            <Section label="Drejning" sigil="◈" text={card.twist} />
+          <div style={{ padding: "18px 26px 22px", display: "grid", gap: 18, position: "relative" }}>
+            <Section label="Hændelse" sigil="❧" text={card.encounter} variant="main" />
+            <Ornament accent={`${accent}88`} />
+            <Section label="Drejning" sigil="◈" text={card.twist} variant="drejning" />
 
             <div
               style={{
@@ -1581,8 +1714,20 @@ ${card.effect}`;
               <p style={{ margin: "0 0 9px", fontSize: 15, color: ink, lineHeight: 1.62, fontStyle: "italic" }}>
                 {card.weather.text}
               </p>
-              <div style={{ fontSize: 13, color: inkFaded, borderTop: `1px solid ${dividerColor}`, paddingTop: 9 }}>
-                <strong>Vejreffekt:</strong> {card.weather.effect}
+              <div style={{
+                fontSize: 12,
+                color: inkFaded,
+                borderTop: `1px solid ${dividerColor}`,
+                paddingTop: 9,
+                fontFamily: "'Courier New', Courier, monospace",
+                letterSpacing: "0.02em",
+                background: "#b8962e0a",
+                borderRadius: "0 0 10px 10px",
+                margin: "9px -15px -14px",
+                padding: "9px 15px 12px",
+              }}>
+                <span style={{ fontWeight: 700, fontFamily: "Georgia, serif", letterSpacing: "0.08em", fontSize: 10, textTransform: "uppercase" }}>Mekanik · </span>
+                {card.weather.effect}
               </div>
             </div>
 
@@ -1590,8 +1735,8 @@ ${card.effect}`;
               style={{
                 border: `1px solid ${dividerColor}`,
                 borderRadius: 16,
-                padding: "14px 15px",
-                background: "#fff7df55",
+                padding: "13px 15px",
+                background: "#fff7df44",
                 boxShadow: "inset 0 1px 0 #ffffff88",
               }}
             >
@@ -1607,39 +1752,81 @@ ${card.effect}`;
               >
                 ⚔ Hændelseseffekt
               </div>
-              <p style={{ margin: 0, fontSize: 15, color: ink, lineHeight: 1.62 }}>{card.effect}</p>
+              <p style={{
+                margin: 0,
+                fontSize: 13,
+                color: inkFaded,
+                lineHeight: 1.6,
+                fontFamily: "'Courier New', Courier, monospace",
+                letterSpacing: "0.01em",
+              }}>
+                {card.effect}
+              </p>
             </div>
 
             <div
               style={{
-                border: `1px solid ${accent}55`,
+                border: `1px solid ${accent}44`,
                 borderRadius: 16,
-                padding: "14px 15px",
-                background: "linear-gradient(180deg, #3a260d10, #b8962e18)",
-                boxShadow: "inset 0 1px 0 #ffffff66",
+                padding: "15px 16px",
+                background: "linear-gradient(180deg, #2a1a0808, #b8962e10)",
+                boxShadow: "inset 0 1px 0 #ffffff55",
               }}
             >
               <div
                 style={{
                   fontSize: 10,
                   fontWeight: 900,
-                  letterSpacing: "0.16em",
+                  letterSpacing: "0.18em",
                   textTransform: "uppercase",
                   color: inkFaded,
-                  marginBottom: 10,
+                  marginBottom: 12,
                 }}
               >
-                ✎ DM notes
+                ✎ DM-noter
               </div>
-              <div style={{ display: "grid", gap: 8 }}>
-                <div style={{ fontSize: 14, lineHeight: 1.55 }}>
-                  <strong>Hook:</strong> {card.notes?.hook}
+              <div style={{ display: "grid", gap: 9 }}>
+                {/* Hook — dæmpet grøn */}
+                <div style={{
+                  fontSize: 13.5, lineHeight: 1.55,
+                  padding: "7px 11px",
+                  borderRadius: 10,
+                  background: "#2e5a3a18",
+                  border: "1px solid #3a6b4a44",
+                  color: ink,
+                }}>
+                  <span style={{ fontWeight: 800, color: "#3a5e42", letterSpacing: "0.05em", fontSize: 11, textTransform: "uppercase", marginRight: 6 }}>
+                    ⊕ Hook
+                  </span>
+                  {card.notes?.hook}
                 </div>
-                <div style={{ fontSize: 14, lineHeight: 1.55 }}>
-                  <strong>Komplikation:</strong> {card.notes?.komplikation}
+                {/* Komplikation — mørk rødbrun */}
+                <div style={{
+                  fontSize: 13.5, lineHeight: 1.55,
+                  padding: "7px 11px",
+                  borderRadius: 10,
+                  background: "#5a1a1018",
+                  border: "1px solid #7a342844",
+                  color: ink,
+                }}>
+                  <span style={{ fontWeight: 800, color: "#7a3428", letterSpacing: "0.05em", fontSize: 11, textTransform: "uppercase", marginRight: 6 }}>
+                    ⚡ Komplikation
+                  </span>
+                  {card.notes?.komplikation}
                 </div>
-                <div style={{ fontSize: 14, lineHeight: 1.55 }}>
-                  <strong>Belønning:</strong> {card.notes?.belønning}
+                {/* Belønning — gylden */}
+                <div style={{
+                  fontSize: 13.5, lineHeight: 1.55,
+                  padding: "7px 11px",
+                  borderRadius: 10,
+                  background: "#b8962e15",
+                  border: "1px solid #b8962e44",
+                  color: ink,
+                }}>
+                  <span style={{ fontWeight: 800, color: "#8a6820", letterSpacing: "0.05em", fontSize: 11, textTransform: "uppercase", marginRight: 6 }}>
+                    ✦ Belønning
+                  </span>
+                  {card.notes?.belønning}
                 </div>
               </div>
             </div>
@@ -1676,66 +1863,100 @@ ${card.effect}`;
 
         {sortedHistory.length > 0 && (
           <section style={{ maxWidth: 900, margin: "0 auto" }}>
-            <div style={{ fontSize: 10, letterSpacing: "0.22em", textTransform: "uppercase", color: "#ffffff55", textAlign: "center", marginBottom: 11 }}>
-              ✦ Historik · pinnede kort ligger først ✦
+            {/* Historik header med collapsible + kun-pinned toggle */}
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 10, marginBottom: histOpen ? 11 : 6 }}>
+              <button
+                onClick={() => setHistOpen(v => !v)}
+                style={{
+                  fontSize: 10,
+                  letterSpacing: "0.22em",
+                  textTransform: "uppercase",
+                  color: "#ffffff55",
+                  background: "none",
+                  border: "none",
+                  cursor: "pointer",
+                  fontFamily: "Georgia, serif",
+                  padding: "2px 0",
+                }}
+              >
+                {histOpen ? "▾" : "▸"} Historik
+                {pinned.size > 0 && <span style={{ color: gold, marginLeft: 6 }}>★ {pinned.size} pinned</span>}
+              </button>
+              {histOpen && pinned.size > 0 && (
+                <button
+                  className={`hist-toggle${onlyPinned ? " active" : ""}`}
+                  onClick={() => setOnlyPinned(v => !v)}
+                >
+                  {onlyPinned ? "★ Kun pinnede" : "Vis alle"}
+                </button>
+              )}
             </div>
-            <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 10 }}>
-              {sortedHistory.map(h => {
-                const isPinned = pinned.has(h.id);
-                const hAccent = toneColor[h.tone] || gold;
-                return (
-                  <div
-                    key={h.id}
-                    onClick={() => setCard(h)}
-                    style={{
-                      flex: "0 0 172px",
-                      background: isPinned
-                        ? "linear-gradient(180deg, #4a310f, #251607)"
-                        : "linear-gradient(180deg, #2a1a0b, #160d06)",
-                      border: `1px solid ${isPinned ? gold : "#ffffff1f"}`,
-                      borderRadius: 16,
-                      padding: "12px 13px",
-                      cursor: "pointer",
-                      position: "relative",
-                      boxShadow: isPinned ? "0 0 18px #b8962e33" : "none",
-                    }}
-                  >
-                    <div style={{ fontSize: 10, color: typeColor[h.type] || "#aaa", marginBottom: 5, letterSpacing: "0.08em" }}>
-                      {TYPE_SIGILS[h.type]} {h.type}
-                    </div>
-                    <div style={{ fontSize: 13, fontWeight: 800, color: parchmentLight, lineHeight: 1.25, marginBottom: 7, paddingRight: 16 }}>
-                      {h.title}
-                    </div>
-                    <div style={{ fontSize: 10, color: hAccent, marginBottom: 5 }}>
-                      {TONE_SIGILS[h.tone]} {h.tone}
-                    </div>
-                    <div style={{ fontSize: 10, color: "#ffffff55" }}>
-                      {SEASON_ICONS[h.weather.season]} {h.weather.name}
-                    </div>
-                    <button
-                      onClick={e => {
-                        e.stopPropagation();
-                        togglePin(h.id);
-                      }}
-                      title={isPinned ? "Fjern pin" : "Pin kort"}
+
+            {histOpen && (
+              <div style={{ display: "flex", gap: 10, overflowX: "auto", paddingBottom: 12 }}>
+                {(onlyPinned ? sortedHistory.filter(h => pinned.has(h.id)) : sortedHistory).map(h => {
+                  const isPinned = pinned.has(h.id);
+                  const hAccent = toneColor[h.tone] || gold;
+                  return (
+                    <div
+                      key={h.id}
+                      className="hist-card"
+                      onClick={() => setCard(h)}
                       style={{
-                        position: "absolute",
-                        top: 9,
-                        right: 9,
-                        background: "none",
-                        border: "none",
+                        flex: "0 0 168px",
+                        background: isPinned
+                          ? "linear-gradient(160deg, #4f3512, #2a1a08)"
+                          : "linear-gradient(160deg, #2d1e0d, #160d06)",
+                        border: `1px solid ${isPinned ? gold + "99" : "#ffffff1f"}`,
+                        borderRadius: 14,
+                        borderTopLeftRadius: isPinned ? 4 : 14,
+                        padding: "14px 13px 12px",
                         cursor: "pointer",
-                        fontSize: 15,
-                        color: isPinned ? gold : "#ffffff35",
-                        padding: 0,
+                        position: "relative",
+                        boxShadow: isPinned
+                          ? `0 0 22px ${gold}33, 0 4px 12px #00000044`
+                          : "0 2px 8px #00000033",
+                        overflow: "visible",
                       }}
                     >
-                      {isPinned ? "★" : "☆"}
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
+                      {/* Bogmærke-ribbon på pinned */}
+                      {isPinned && (
+                        <div className="pin-ribbon" style={{ height: 28 }} />
+                      )}
+                      <div style={{ fontSize: 10, color: typeColor[h.type] || "#aaa", marginBottom: 5, letterSpacing: "0.08em" }}>
+                        {TYPE_SIGILS[h.type]} {h.type}
+                      </div>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: parchmentLight, lineHeight: 1.25, marginBottom: 7, paddingRight: 18 }}>
+                        {h.title}
+                      </div>
+                      <div style={{ fontSize: 10, color: hAccent, marginBottom: 5 }}>
+                        {TONE_SIGILS[h.tone]} {h.tone}
+                      </div>
+                      <div style={{ fontSize: 10, color: "#ffffff44" }}>
+                        {SEASON_ICONS[h.weather.season]} {h.weather.name}
+                      </div>
+                      <button
+                        onClick={e => { e.stopPropagation(); togglePin(h.id); }}
+                        title={isPinned ? "Fjern bogmærke" : "Bogmærk"}
+                        style={{
+                          position: "absolute",
+                          top: 8, right: 9,
+                          background: "none",
+                          border: "none",
+                          cursor: "pointer",
+                          fontSize: 16,
+                          color: isPinned ? gold : "#ffffff30",
+                          padding: 0,
+                          transition: "color 0.12s",
+                        }}
+                      >
+                        {isPinned ? "★" : "☆"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </section>
         )}
 
